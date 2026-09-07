@@ -338,6 +338,27 @@ export function GroupListItem({
       <Button
         variant="ghost"
         size="icon-sm"
+        title="Copy direct group URL"
+        aria-label={`Copy direct URL for ${group.name}`}
+        onClick={() => copyUrl(group)}
+        className="shrink-0"
+      >
+        <Copy />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        title="Open group in new tab"
+        aria-label={`Open ${group.name} in a new tab`}
+        onClick={() => window.open(group.url, "_blank", "noopener,noreferrer")}
+        className="shrink-0"
+      >
+        <ExternalLink />
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="icon-sm"
         title={hidden ? "Unhide group" : "Hide group"}
         aria-label={hidden ? `Unhide ${group.name}` : `Hide ${group.name}`}
         onClick={onToggleHidden}
