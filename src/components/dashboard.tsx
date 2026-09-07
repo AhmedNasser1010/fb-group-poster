@@ -3,31 +3,21 @@
 import * as React from "react"
 import { toast } from "sonner"
 import {
-  Globe,
-  Lock,
-  RefreshCw,
-  Send,
-  Search,
-  LogIn,
   LayoutGrid,
   List,
   ArrowUpDown,
-  LogOut,
-  Copy,
-  ExternalLink,
   EyeOff,
   Eye,
   ChevronDown,
+  Search,
+  CheckCircle2,
+  Circle,
+  LogIn,
+  RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar"
 import {
   Dialog,
   DialogContent,
@@ -45,7 +35,23 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion"
 import { Skeleton } from "@/components/ui/skeleton"
-import { ThemeToggle } from "@/components/theme-toggle"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
+import { Header } from "@/components/dashboard/header"
+import { StatsBar } from "@/components/dashboard/stats-bar"
+import { Composer } from "@/components/dashboard/composer"
+import {
+  GroupCard,
+  GroupListItem,
+  parseMemberCount,
+} from "@/components/dashboard/group-card"
 import type {
   Group,
   FacebookPage,
@@ -53,6 +59,8 @@ import type {
   GroupDisplayStyle,
   GroupSortOrder,
 } from "@/lib/types"
+
+type GroupFilter = "all" | "posted" | "remaining"
 
 export function Dashboard() {
   const [groups, setGroups] = React.useState<Group[]>([])
@@ -72,6 +80,7 @@ export function Dashboard() {
   const [pageDetecting, setPageDetecting] = React.useState(false)
   const [displayStyle, setDisplayStyle] = React.useState<GroupDisplayStyle>("grid")
   const [sortOrder, setSortOrder] = React.useState<GroupSortOrder>("default")
+  const [filter, setFilter] = React.useState<GroupFilter>("all")
   const [confirmRefreshOpen, setConfirmRefreshOpen] = React.useState(false)
   const [confirmLogoutOpen, setConfirmLogoutOpen] = React.useState(false)
   const [loggingOut, setLoggingOut] = React.useState(false)
@@ -134,7 +143,7 @@ export function Dashboard() {
     try {
       window.localStorage.setItem("groupSortOrder", order)
     } catch {
-      // localStorage unavailable (e.g. private mode) — order just won't persist
+      // localStorage unavailable — order just won't persist
     }
   }
 
@@ -143,7 +152,7 @@ export function Dashboard() {
     try {
       window.localStorage.setItem("groupDisplayStyle", style)
     } catch {
-      // localStorage unavailable (e.g. private mode) — style just won't persist
+      // localStorage unavailable — style just won't persist
     }
   }
 
@@ -202,11 +211,7 @@ export function Dashboard() {
           }
         }
       } catch {
-        // localStorage unavailable — keep default grid style
-      }
-
-      if (cache.selectedPageId && cache.pages?.length === 0) {
-        detectPages()
+        // localStorage unavailable — keep defaults
       }
 
       setLoaded(true)
@@ -420,16 +425,21 @@ export function Dashboard() {
     }
   }
 
+  const visibleGroups = groups.filter((g) => !hiddenIds[g.id])
+  const hiddenGroups = groups.filter((g) => hiddenIds[g.id])
+
   const filteredGroups = sortGroups(
-    groups.filter(
-      (g) =>
-        !hiddenIds[g.id] &&
-        g.name.toLowerCase().includes(searchQuery.toLowerCase())
-    ),
+    visibleGroups.filter((g) => {
+      const matchesSearch = g.name
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase())
+      if (!matchesSearch) return false
+      if (filter === "posted") return !!postedIds[g.id]
+      if (filter === "remaining") return !postedIds[g.id]
+      return true
+    }),
     sortOrder
   )
-
-  const hiddenGroups = groups.filter((g) => hiddenIds[g.id])
 
   const hiddenDisplayGroups = sortGroups(
     hiddenGroups.filter((g) =>
@@ -439,59 +449,60 @@ export function Dashboard() {
   )
 
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) || null
-
   const posting =
     !!selectedGroup && postStatuses[selectedGroup.id]?.status === "loading"
+  const postedCount = Object.values(postedIds).filter(Boolean).length
+  const totalReach = visibleGroups.reduce(
+    (sum, g) => sum + parseMemberCount(g.memberCount),
+    0
+  )
+
+  const filterOptions: { value: GroupFilter; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { value: "all", label: "All", icon: List },
+    { value: "posted", label: "Posted", icon: CheckCircle2 },
+    { value: "remaining", label: "Remaining", icon: Circle },
+  ]
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">Facebook Group Poster</h1>
-            {loggedIn && (
-              <Badge variant="outline" className="text-emerald-600">
-                Logged in
-              </Badge>
-            )}
-            {loggedIn === false && (
-              <Badge variant="destructive">Not logged in</Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {!loggedIn && !loginOpen && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={loginPending}
-                onClick={openLogin}
-              >
-                <LogIn />
-                {loginPending ? "Opening..." : "Login to Facebook"}
-              </Button>
-            )}
-            {loggedIn && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={loggingOut}
-                onClick={() => setConfirmLogoutOpen(true)}
-              >
-                <LogOut />
-                {loggingOut ? "Logging out..." : "Logout"}
-              </Button>
-            )}
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
+    <div className="relative min-h-screen">
+      {/* decorative hero background */}
+      <div
+        aria-hidden
+        className="bg-grid pointer-events-none absolute inset-x-0 top-0 h-72"
+      />
 
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <Header
+        loggedIn={loggedIn}
+        loginOpen={loginOpen}
+        loginPending={loginPending}
+        loggingOut={loggingOut}
+        refreshing={refreshing}
+        pages={pages}
+        selectedPageId={selectedPageId}
+        onLogin={openLogin}
+        onLogoutRequest={() => setConfirmLogoutOpen(true)}
+        onSelectPage={selectPage}
+        onDetectPages={detectPages}
+        pageDetecting={pageDetecting}
+        onRefresh={() => setConfirmRefreshOpen(true)}
+        searchQuery={searchQuery}
+        onSearch={setSearchQuery}
+      />
+
+      <main className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         {!loaded ? (
           <LoadingState />
         ) : (
           <>
-            <PostPanel
+            <StatsBar
+              loading={false}
+              totalGroups={visibleGroups.length}
+              postedCount={postedCount}
+              errors={0}
+              totalMembers={totalReach}
+            />
+
+            <Composer
               content={content}
               setContent={setContent}
               imageFile={imageFile}
@@ -499,9 +510,7 @@ export function Dashboard() {
               selectedGroup={selectedGroup}
               posting={posting}
               postStatus={
-                selectedGroup
-                  ? postStatuses[selectedGroup.id]
-                  : undefined
+                selectedGroup ? postStatuses[selectedGroup.id] : undefined
               }
               onPost={() => selectedGroup && postToGroup(selectedGroup)}
               disabled={!loggedIn || (!!selectedGroupId && !selectedGroup)}
@@ -511,25 +520,41 @@ export function Dashboard() {
 
             <Separator className="my-8" />
 
+            {/* toolbar */}
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <div className="relative w-64">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative md:hidden">
                   <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Search groups..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-8"
+                    className="h-8 w-40 pl-8"
                   />
                 </div>
-                <Button
-                  variant="outline"
-                  onClick={() => setConfirmRefreshOpen(true)}
-                  disabled={refreshing || !loggedIn}
+
+                <div
+                  className="flex items-center rounded-full border bg-card p-0.5"
+                  role="group"
+                  aria-label="Filter groups"
                 >
-                  <RefreshCw className={refreshing ? "animate-spin" : ""} />
-                  Refresh List
-                </Button>
+                  {filterOptions.map(({ value, label, icon: Icon }) => (
+                    <button
+                      key={value}
+                      onClick={() => setFilter(value)}
+                      aria-pressed={filter === value}
+                      className={
+                        "flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors " +
+                        (filter === value
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground")
+                      }
+                    >
+                      <Icon className="size-3" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger
@@ -542,9 +567,7 @@ export function Dashboard() {
                     <DropdownMenuGroup>
                       <DropdownMenuLabel>Sort by</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => updateSortOrder("default")}
-                      >
+                      <DropdownMenuItem onClick={() => updateSortOrder("default")}>
                         Default {sortOrder === "default" && "✓"}
                       </DropdownMenuItem>
                       <DropdownMenuItem
@@ -565,13 +588,14 @@ export function Dashboard() {
                 </DropdownMenu>
 
                 <div
-                  className="flex items-center rounded-lg border"
+                  className="flex items-center rounded-full border bg-card p-0.5"
                   role="group"
                   aria-label="Group display style"
                 >
                   <Button
                     variant={displayStyle === "grid" ? "secondary" : "ghost"}
                     size="icon-sm"
+                    className="rounded-full"
                     aria-label="Grid view"
                     aria-pressed={displayStyle === "grid"}
                     onClick={() => updateDisplayStyle("grid")}
@@ -581,6 +605,7 @@ export function Dashboard() {
                   <Button
                     variant={displayStyle === "list" ? "secondary" : "ghost"}
                     size="icon-sm"
+                    className="rounded-full"
                     aria-label="List view"
                     aria-pressed={displayStyle === "list"}
                     onClick={() => updateDisplayStyle("list")}
@@ -590,40 +615,24 @@ export function Dashboard() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <PageSelector
-                  pages={pages}
-                  selectedPageId={selectedPageId}
-                  onSelect={selectPage}
-                  onDetect={detectPages}
-                  detecting={pageDetecting}
-                  disabled={!loggedIn}
-                />
-                {lastUpdated && (
-                  <span className="text-xs text-muted-foreground">
-                    Updated {formatDate(lastUpdated)}
-                  </span>
-                )}
-              </div>
+              {lastUpdated && (
+                <span className="text-xs text-muted-foreground">
+                  Updated {formatDate(lastUpdated)}
+                </span>
+              )}
             </div>
 
-            {pages.length > 0 && (
-              <div className="mb-4">
-                <Badge variant="secondary" className="gap-1.5">
-                  {selectedPageId
-                    ? `Posting as: ${pages.find((p) => p.id === selectedPageId)?.name}`
-                    : "Posting as: Personal Profile"}
-                </Badge>
-              </div>
-            )}
-
             {!loggedIn && (
-              <Card className="mb-6 border-dashed">
-                <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
-                  <p className="text-muted-foreground">
-                    You need to log in to Facebook to use this app.
+              <Card className="mb-6 border-dashed shadow-none">
+                <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+                  <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <LogIn className="size-5" />
+                  </div>
+                  <p className="max-w-sm text-sm text-muted-foreground">
+                    Connect your Facebook session to start posting to your
+                    groups. A browser window will open for a one-time login.
                   </p>
-                  <Button onClick={openLogin} disabled={loginPending}>
+                  <Button onClick={openLogin} disabled={loginPending} className="shadow-md shadow-primary/20">
                     <LogIn />
                     {loginPending ? "Opening browser..." : "Login with Facebook"}
                   </Button>
@@ -632,9 +641,9 @@ export function Dashboard() {
             )}
 
             {groups.length === 0 && loggedIn ? (
-              <Card className="mb-6 border-dashed">
-                <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
-                  <p className="text-muted-foreground">
+              <Card className="mb-6 border-dashed shadow-none">
+                <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+                  <p className="max-w-sm text-sm text-muted-foreground">
                     No groups cached yet. Click &quot;Refresh List&quot; to
                     fetch your joined groups.
                   </p>
@@ -684,6 +693,12 @@ export function Dashboard() {
                   />
                 ))}
               </div>
+            )}
+
+            {filteredGroups.length === 0 && groups.length > 0 && (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No groups match your search or filter.
+              </p>
             )}
 
             {hiddenGroups.length > 0 && (
@@ -762,616 +777,67 @@ export function Dashboard() {
                 </Accordion>
               </>
             )}
-
-            {filteredGroups.length === 0 && groups.length > 0 && (
-              <p className="py-8 text-center text-muted-foreground">
-                No groups match &quot;{searchQuery}&quot;
-              </p>
-            )}
-
-            <Dialog open={confirmRefreshOpen} onOpenChange={setConfirmRefreshOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Refresh groups list?</DialogTitle>
-                  <DialogDescription>
-                    This re-scrapes your joined Facebook groups and overwrites
-                    the cached groups.json. You can keep a copy of the current
-                    cache before it is replaced.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setConfirmRefreshOpen(false)}
-                    disabled={refreshing}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => refreshGroups(true)}
-                    disabled={refreshing}
-                  >
-                    Keep Backup & Refresh
-                  </Button>
-                  <Button
-                    onClick={() => refreshGroups(false)}
-                    disabled={refreshing}
-                  >
-                    {refreshing && <RefreshCw className="animate-spin" />}
-                    Replace Cache
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            <Dialog open={confirmLogoutOpen} onOpenChange={setConfirmLogoutOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Log out of Facebook?</DialogTitle>
-                  <DialogDescription>
-                    This clears the saved Facebook session and closes the
-                    browser. You will need to log in again to post to groups.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setConfirmLogoutOpen(false)}
-                    disabled={loggingOut}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={logout}
-                    disabled={loggingOut}
-                  >
-                    {loggingOut && <RefreshCw className="animate-spin" />}
-                    Log out
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
           </>
         )}
       </main>
+
+      {/* confirm refresh dialog */}
+      <Dialog open={confirmRefreshOpen} onOpenChange={setConfirmRefreshOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Refresh group list?</DialogTitle>
+            <DialogDescription>
+              This re-scrapes your groups with the browser. It can take a
+              while, and Facebook may temporarily restrict heavy scraping.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmRefreshOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => refreshGroups(true)} disabled={refreshing}>
+              Refresh with backup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* confirm logout dialog */}
+      <Dialog open={confirmLogoutOpen} onOpenChange={setConfirmLogoutOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Log out of Facebook?</DialogTitle>
+            <DialogDescription>
+              Your saved session will be cleared. You will need to log in
+              again to post.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmLogoutOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={logout} disabled={loggingOut}>
+              {loggingOut ? "Logging out..." : "Log out"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  )
-}
-
-function PageSelector({
-  pages,
-  selectedPageId,
-  onSelect,
-  onDetect,
-  detecting,
-  disabled,
-}: {
-  pages: FacebookPage[]
-  selectedPageId: string | null
-  onSelect: (pageId: string | null) => void
-  onDetect: () => void
-  detecting: boolean
-  disabled: boolean
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={(
-          <Button variant="outline" size="sm" disabled={disabled || detecting} />
-        )}
-      >
-        <Avatar className="size-5">
-          <AvatarImage
-            src={pages.find((p) => p.id === selectedPageId)?.avatarUrl}
-          />
-          <AvatarFallback className="text-[10px]">
-            {(pages.find((p) => p.id === selectedPageId)?.name || "P")
-              .charAt(0)
-              .toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        {selectedPageId
-          ? pages.find((p) => p.id === selectedPageId)?.name
-          : "Post as..."}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Post as</DropdownMenuLabel>
-        </DropdownMenuGroup>
-        <DropdownMenuItem onClick={() => onSelect(null)}>
-          <span>Personal Profile</span>
-        </DropdownMenuItem>
-        {pages.map((page) => (
-          <DropdownMenuItem
-            key={page.id}
-            onClick={() => onSelect(page.id)}
-          >
-            <Avatar className="mr-2 size-6">
-              <AvatarImage src={page.avatarUrl} />
-              <AvatarFallback className="text-[10px]">
-                {page.name.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            {page.name}
-          </DropdownMenuItem>
-        ))}
-        {pages.length === 0 && (
-          <DropdownMenuItem disabled>
-            <span>No Pages detected</span>
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onDetect}>
-          <RefreshCw className={detecting ? "animate-spin" : ""} />
-          Detect Page...
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-function GroupCard({
-  group,
-  index,
-  posted,
-  onTogglePosted,
-  status,
-  isSelected,
-  disabled,
-  onPost,
-  note,
-  onNoteChange,
-  hidden,
-  onToggleHidden,
-}: {
-  group: Group
-  index: number
-  posted: boolean
-  onTogglePosted: () => void
-  status?: PostStatus
-  isSelected: boolean
-  disabled: boolean
-  onPost: () => void
-  note: string
-  onNoteChange: (value: string) => void
-  hidden: boolean
-  onToggleHidden: () => void
-}) {
-  return (
-    <Card
-      className={
-        "transition-colors " +
-        (isSelected ? "border-primary/60 ring-1 ring-primary/30" : "") +
-        (posted ? " border-emerald-600/40" : "")
-      }
-    >
-      <CardContent className="p-4">
-        <div className="flex items-center gap-3">
-          <Avatar size="lg">
-            <AvatarImage src={group.logoUrl} />
-            <AvatarFallback>
-              {group.name.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-medium" title={group.name}>
-              <span className="mr-1.5 text-muted-foreground">#{index}</span>
-              {group.name}
-            </p>
-            <div className="mt-1 flex items-center gap-1.5">
-              {group.privacy === "public" ? (
-                <Badge variant="outline" className="gap-1 text-emerald-600">
-                  <Globe className="size-3" />
-                  Public
-                </Badge>
-              ) : group.privacy === "private" ? (
-                <Badge variant="outline" className="gap-1 text-amber-600">
-                  <Lock className="size-3" />
-                  Private
-                </Badge>
-              ) : (
-                <Badge variant="outline">Unknown privacy</Badge>
-              )}
-              <span className="text-xs text-muted-foreground">
-                {group.memberCount} members
-              </span>
-            </div>
-          </div>
-          <label className="flex shrink-0 cursor-pointer items-center gap-1.5">
-            <input
-              type="checkbox"
-              checked={posted}
-              onChange={onTogglePosted}
-              className="size-4 cursor-pointer accent-emerald-600"
-              aria-label={`Mark ${group.name} as posted`}
-            />
-            <span className="text-xs text-muted-foreground">Posted</span>
-          </label>
-        </div>
-
-        {status && status.status !== "idle" && (
-          <div className="mt-3">
-            {status.status === "loading" && (
-              <Badge variant="secondary">
-                <RefreshCw className="animate-spin" />
-                Posting...
-              </Badge>
-            )}
-            {status.status === "success" && (
-              <Badge className="bg-emerald-600 text-white">Posted</Badge>
-            )}
-            {status.status === "error" && (
-              <>
-                <Badge variant="destructive">Failed</Badge>
-                {status.message && (
-                  <p className="mt-1 text-xs text-destructive">
-                    {status.message}
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        <div className="mt-4 flex gap-2">
-          <Button
-            className="w-full"
-            size="sm"
-            onClick={onPost}
-            disabled={
-              disabled || status?.status === "loading"
-            }
-          >
-            {status?.status === "loading" ? (
-              <RefreshCw className="animate-spin" />
-            ) : (
-              <Send />
-            )}
-            Post
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            title="Copy direct group URL"
-            aria-label={`Copy direct URL for ${group.name}`}
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(group.url)
-                toast.success("Group URL copied")
-              } catch {
-                toast.error("Failed to copy URL")
-              }
-            }}
-          >
-            <Copy />
-            Copy URL
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            title="Open group in new tab"
-            aria-label={`Open ${group.name} in a new tab`}
-            onClick={() => window.open(group.url, "_blank", "noopener,noreferrer")}
-          >
-            <ExternalLink />
-            Open
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            title={hidden ? "Unhide group" : "Hide group"}
-            aria-label={hidden ? `Unhide ${group.name}` : `Hide ${group.name}`}
-            onClick={onToggleHidden}
-          >
-            {hidden ? <Eye /> : <EyeOff />}
-            {hidden ? "Unhide" : "Hide"}
-          </Button>
-        </div>
-
-        <Input
-          className="mt-2 h-8 text-xs"
-          placeholder="Add note..."
-          value={note}
-          onChange={(e) => onNoteChange(e.target.value)}
-          aria-label={`Note for ${group.name}`}
-        />
-      </CardContent>
-    </Card>
-  )
-}
-
-function GroupListItem({
-  group,
-  index,
-  posted,
-  onTogglePosted,
-  status,
-  isSelected,
-  disabled,
-  onPost,
-  note,
-  onNoteChange,
-  hidden,
-  onToggleHidden,
-}: {
-  group: Group
-  index: number
-  posted: boolean
-  onTogglePosted: () => void
-  status?: PostStatus
-  isSelected: boolean
-  disabled: boolean
-  onPost: () => void
-  note: string
-  onNoteChange: (value: string) => void
-  hidden: boolean
-  onToggleHidden: () => void
-}) {
-  return (
-    <div
-      className={
-        "flex items-center gap-3 rounded-lg border bg-card p-3 transition-colors " +
-        (isSelected ? "border-primary/60 ring-1 ring-primary/30" : "") +
-        (posted ? " border-emerald-600/40" : "")
-      }
-    >
-      <span className="shrink-0 text-sm text-muted-foreground" title={`Group #${index}`}>
-        #{index}
-      </span>
-      <Avatar className="size-9">
-        <AvatarImage src={group.logoUrl} />
-        <AvatarFallback className="text-sm">
-          {group.name.charAt(0).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
-
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium" title={group.name}>
-          {group.name}
-        </p>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          {group.privacy === "public" ? (
-            <Badge variant="outline" className="gap-1 text-emerald-600">
-              <Globe className="size-3" />
-              Public
-            </Badge>
-          ) : group.privacy === "private" ? (
-            <Badge variant="outline" className="gap-1 text-amber-600">
-              <Lock className="size-3" />
-              Private
-            </Badge>
-          ) : (
-            <Badge variant="outline">Unknown privacy</Badge>
-          )}
-          <span className="text-xs text-muted-foreground">
-            {group.memberCount} members
-          </span>
-          {status?.status === "success" && (
-            <Badge className="bg-emerald-600 text-white">Posted</Badge>
-          )}
-          {status?.status === "error" && (
-            <Badge variant="destructive">Failed</Badge>
-          )}
-          {status?.status === "loading" && (
-            <Badge variant="secondary">
-              <RefreshCw className="animate-spin" />
-              Posting...
-            </Badge>
-          )}
-        </div>
-        {status?.status === "error" && status.message && (
-          <p className="mt-1 truncate text-xs text-destructive" title={status.message}>
-            {status.message}
-          </p>
-        )}
-        <Input
-          className="mt-1.5 h-7 text-xs"
-          placeholder="Add note..."
-          value={note}
-          onChange={(e) => onNoteChange(e.target.value)}
-          aria-label={`Note for ${group.name}`}
-        />
-      </div>
-
-      <label className="flex shrink-0 cursor-pointer items-center gap-1.5">
-        <input
-          type="checkbox"
-          checked={posted}
-          onChange={onTogglePosted}
-          className="size-4 cursor-pointer accent-emerald-600"
-          aria-label={`Mark ${group.name} as posted`}
-        />
-        <span className="text-xs text-muted-foreground">Posted</span>
-      </label>
-
-      <Button
-        size="sm"
-        onClick={onPost}
-        disabled={disabled || status?.status === "loading"}
-      >
-        {status?.status === "loading" ? (
-          <RefreshCw className="animate-spin" />
-        ) : (
-          <Send />
-        )}
-        Post
-      </Button>
-
-      <Button
-        variant="outline"
-        size="icon-sm"
-        title={hidden ? "Unhide group" : "Hide group"}
-        aria-label={hidden ? `Unhide ${group.name}` : `Hide ${group.name}`}
-        onClick={onToggleHidden}
-      >
-        {hidden ? <Eye /> : <EyeOff />}
-      </Button>
-    </div>
-  )
-}
-
-function PostPanel({
-  content,
-  setContent,
-  imageFile,
-  setImageFile,
-  selectedGroup,
-  posting,
-  postStatus,
-  onPost,
-  disabled,
-  groupId,
-  onClearSelection,
-}: {
-  content: string
-  setContent: (v: string) => void
-  imageFile: File | null
-  setImageFile: (f: File | null) => void
-  selectedGroup: Group | null
-  posting: boolean
-  postStatus?: PostStatus
-  onPost: () => void
-  disabled: boolean
-  groupId: string | null
-  onClearSelection: () => void
-}) {
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
-
-  return (
-    <Card id="post-panel">
-      <CardContent className="p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-semibold">Compose Post</h2>
-          {groupId && !selectedGroup && (
-            <Badge variant="destructive">Group not found</Badge>
-          )}
-          {selectedGroup && (
-            <Badge variant="secondary">{selectedGroup.name}</Badge>
-          )}
-        </div>
-
-        {groupId && selectedGroup && (
-          <Button
-            variant="ghost"
-            size="xs"
-            className="mb-2"
-            onClick={onClearSelection}
-          >
-            Clear selection
-          </Button>
-        )}
-
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {groupId
-              ? "Posting to: " +
-                (selectedGroup?.name || "Unknown group")
-              : "Select a group by clicking Post on its card"}
-          </p>
-          {postStatus?.status === "loading" && (
-            <Badge variant="secondary">
-              <RefreshCw className="animate-spin" />
-              Posting...
-            </Badge>
-          )}
-        </div>
-
-        <Textarea
-          placeholder="Write your post content here..."
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          className="min-h-[120px]"
-          disabled={disabled}
-        />
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0] || null
-            setImageFile(f)
-          }}
-        />
-
-        <div className="mt-3 flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
-          >
-            {imageFile ? "Change Image" : "Attach Image"}
-          </Button>
-          {imageFile && (
-            <>
-              <span className="text-xs text-muted-foreground">
-                {imageFile.name}
-              </span>
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => setImageFile(null)}
-                disabled={disabled}
-              >
-                Remove
-              </Button>
-            </>
-          )}
-        </div>
-
-        <div className="mt-4 flex items-center justify-between">
-          <Button
-            onClick={onPost}
-            disabled={disabled || !content.trim() || posting}
-          >
-            {posting && <RefreshCw className="animate-spin" />}
-            <Send className={posting ? "" : ""} />
-            Post to{groupId ? " Group" : "..."}
-          </Button>
-
-          {postStatus?.status === "error" && postStatus.message && (
-            <p className="text-sm text-destructive">
-              {postStatus.message}
-            </p>
-          )}
-          {postStatus?.status === "success" && (
-            <p className="text-sm text-emerald-600">
-              {postStatus.message}
-            </p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 
 function LoadingState() {
   return (
-    <div className="space-y-4">
-      <div className="flex gap-3">
-        <Skeleton className="h-9 w-64" />
-        <Skeleton className="h-9 w-28" />
-        <Skeleton className="h-9 w-40 ml-auto" />
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-[72px] rounded-xl" />
+        ))}
       </div>
+      <Skeleton className="h-64 rounded-2xl" />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-          <Card key={i}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <Skeleton className="size-10 rounded-full" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-3 w-1/2" />
-                </div>
-              </div>
-              <Skeleton className="mt-4 h-8 w-full" />
-            </CardContent>
-          </Card>
+          <Skeleton key={i} className="h-44 rounded-xl" />
         ))}
       </div>
     </div>
@@ -1384,17 +850,6 @@ function formatDate(iso: string): string {
   } catch {
     return iso
   }
-}
-
-export function parseMemberCount(count: string): number {
-  const match = count.replace(/,/g, "").match(/([\d.]+)\s*([KkMm])?/)
-  if (!match) return 0
-  const value = parseFloat(match[1])
-  if (Number.isNaN(value)) return 0
-  const suffix = match[2]?.toLowerCase()
-  if (suffix === "k") return value * 1_000
-  if (suffix === "m") return value * 1_000_000
-  return value
 }
 
 function sortGroups(groups: Group[], order: GroupSortOrder): Group[] {
@@ -1414,13 +869,3 @@ function sortGroups(groups: Group[], order: GroupSortOrder): Group[] {
       return sorted
   }
 }
-
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
