@@ -50,6 +50,7 @@ import { Composer } from "@/components/dashboard/composer"
 import {
   GroupCard,
   GroupListItem,
+  GROUP_FLAGS,
   parseMemberCount,
 } from "@/components/dashboard/group-card"
 import type {
@@ -111,9 +112,17 @@ export function Dashboard() {
   ) {
     setGroupFlags((prev) => {
       const current = prev[groupId] || {}
-      const accounts = current[flagId] || []
+      const accounts = current[flagId]
       let next: GroupFlagsMap
-      if (accounts.includes(account)) {
+      if (GROUP_FLAGS.find((f) => f.id === flagId)?.global) {
+        // global flags are not account-specific — clicking toggles them on/off
+        next = { ...current }
+        if (current[flagId]) {
+          delete next[flagId]
+        } else {
+          next[flagId] = "global"
+        }
+      } else if (Array.isArray(accounts) && accounts.includes(account)) {
         // clicking the active account removes it from the flag
         const remaining = accounts.filter((a) => a !== account)
         next = { ...current }
@@ -124,7 +133,8 @@ export function Dashboard() {
         }
       } else {
         // the same flag can be active for multiple accounts at once
-        next = { ...current, [flagId]: [...accounts, account] }
+        const list = Array.isArray(accounts) ? accounts : []
+        next = { ...current, [flagId]: [...list, account] }
       }
       const updated = { ...prev, [groupId]: next }
       try {
@@ -279,7 +289,12 @@ export function Dashboard() {
                   value as Record<string, unknown>
                 )) {
                   if (Array.isArray(acc)) {
-                    flags[fid as GroupFlagId] = acc as GroupFlagAccount[]
+                    // global flags used to be stored per-account — migrate to "global"
+                    flags[fid as GroupFlagId] = GROUP_FLAGS.find(
+                      (f) => f.id === fid
+                    )?.global
+                      ? "global"
+                      : (acc as GroupFlagAccount[])
                   } else if (acc === "page" || acc === "personal") {
                     // old single-account format
                     flags[fid as GroupFlagId] = [acc]

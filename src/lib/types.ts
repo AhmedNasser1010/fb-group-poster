@@ -18,11 +18,16 @@ export type GroupFlagId =
   | "accept-posts"
   | "long-pending"
   | "auto-reject"
+  | "posts-deleted"
+  | "check-again"
+  | "posting-disabled"
 
 export type GroupFlagAccount = "page" | "personal"
 
-// Map of groupId -> active flags, each with the list of accounts it applies to
-export type GroupFlagsMap = Partial<Record<GroupFlagId, GroupFlagAccount[]>>
+// Map of groupId -> active flags. Account-specific flags map to the list of
+// accounts they apply to; global flags (meta.global) map to "global" and apply
+// to the group regardless of which account is used
+export type GroupFlagsMap = Partial<Record<GroupFlagId, GroupFlagAccount[] | "global">>
 
 export type GroupDisplayStyle = "grid" | "list";
 

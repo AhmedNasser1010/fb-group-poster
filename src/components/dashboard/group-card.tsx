@@ -37,13 +37,15 @@ import type {
   GroupFlagsMap,
   PostStatus,
 } from "@/lib/types"
-import { Ban, Clock, Flag, Inbox, ThumbsDown, Monitor, Smartphone, X } from "lucide-react"
+import { Ban, Clock, Flag, Inbox, ThumbsDown, Monitor, Smartphone, X, Trash2, CircleOff } from "lucide-react"
 
 export interface GroupFlagMeta {
   id: GroupFlagId
   label: string
   badgeClass: string
   icon: React.ComponentType<{ className?: string }>
+  /** Global flags apply to the group itself, not to a specific account */
+  global?: boolean
 }
 
 // Registry of group flags. Add new flags here — they will automatically
@@ -54,12 +56,13 @@ export const GROUP_FLAGS: GroupFlagMeta[] = [
     label: "No Reshare",
     badgeClass: "text-rose-600 border-rose-300 bg-rose-50 dark:bg-rose-950/40",
     icon: Ban,
+    global: true,
   },
   {
     id: "accept-posts",
     label: "Accept Posts",
     badgeClass:
-      "text-sky-600 border-sky-300 bg-sky-50 dark:bg-sky-950/40",
+      "text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40",
     icon: Inbox,
   },
   {
@@ -76,6 +79,27 @@ export const GROUP_FLAGS: GroupFlagMeta[] = [
       "text-slate-600 border-slate-300 bg-slate-100 dark:bg-slate-900/60 dark:text-slate-300",
     icon: ThumbsDown,
   },
+  {
+    id: "posts-deleted",
+    label: "Posts Deleted",
+    badgeClass:
+      "text-violet-600 border-violet-300 bg-violet-50 dark:bg-violet-950/40",
+    icon: Trash2,
+  },
+  {
+    id: "check-again",
+    label: "Check Again",
+    badgeClass:
+      "text-teal-600 border-teal-300 bg-teal-50 dark:bg-teal-950/40",
+    icon: RefreshCw,
+  },
+  {
+    id: "posting-disabled",
+    label: "Posting Disabled",
+    badgeClass:
+      "text-orange-600 border-orange-300 bg-orange-50 dark:bg-orange-950/40",
+    icon: CircleOff,
+  },
 ]
 
 export function GroupFlagsBadges({
@@ -88,21 +112,27 @@ export function GroupFlagsBadges({
   className?: string
 }) {
   if (!flags) return null
-  // Page Account flags first, then Personal Account flags
-  const entries = GROUP_FLAGS.filter((f) => flags[f.id]).sort(
-    (a, b) =>
-      (flags[a.id]?.includes("page") ? 0 : 1) -
-      (flags[b.id]?.includes("page") ? 0 : 1)
-  )
+  // Global flags first, then Page Account flags, then Personal Account flags
+  const entries = GROUP_FLAGS.filter((f) => flags[f.id]).sort((a, b) => {
+    const rank = (id: GroupFlagId) => {
+      const v = flags[id]
+      if (v === "global") return 0
+      return Array.isArray(v) && v.includes("page") ? 1 : 2
+    }
+    return rank(a.id) - rank(b.id)
+  })
   if (entries.length === 0) return null
   return (
     <span className={"inline-flex flex-wrap items-center gap-x-1.5 gap-y-1 " + className}>
       {entries.map((flag) => {
         const Icon = flag.icon
-        const accounts = flags[flag.id] || []
-        const accountLabel = accounts
-          .map((a) => (a === "page" ? "Page Account" : "Personal Account"))
-          .join(" + ")
+        const isGlobal = flag.global || flags[flag.id] === "global"
+        const accounts = isGlobal ? [] : (flags[flag.id] as GroupFlagAccount[]) || []
+        const accountLabel = isGlobal
+          ? "All accounts"
+          : accounts
+              .map((a) => (a === "page" ? "Page Account" : "Personal Account"))
+              .join(" + ")
         return (
           <Badge
             key={flag.id}
@@ -110,7 +140,7 @@ export function GroupFlagsBadges({
             render={
               <button
                 type="button"
-                title={`${flag.label} · ${accountLabel} — click to remove all`}
+                title={`${flag.label} · ${accountLabel} — click to remove`}
                 aria-label={`Remove flag ${flag.label}`}
                 onClick={() => onRemove(flag.id)}
                 className="cursor-pointer hover:bg-muted/80"
@@ -118,10 +148,10 @@ export function GroupFlagsBadges({
             }
             className={"gap-1 " + flag.badgeClass}
           >
-            {accounts.includes("page") && (
+            {!isGlobal && accounts.includes("page") && (
               <Monitor className="size-3 opacity-70" aria-label="Page Account" />
             )}
-            {accounts.includes("personal") && (
+            {!isGlobal && accounts.includes("personal") && (
               <Smartphone className="size-3 opacity-70" aria-label="Personal Account" />
             )}
             {flag.label}
@@ -223,6 +253,20 @@ export function GroupFlagMenuButton({
           {GROUP_FLAGS.map((flag) => {
             const Icon = flag.icon
             const active = flags?.[flag.id] || []
+            if (flag.global) {
+              // Global flags aren't account-specific — toggle directly.
+              // The account argument is ignored by the handler for global flags.
+              return (
+                <DropdownMenuItem
+                  key={flag.id}
+                  onClick={() => onSetFlag(flag.id, "page")}
+                >
+                  <Icon className="size-4" />
+                  {flag.label}
+                  {active && active.length > 0 && " ✓"}
+                </DropdownMenuItem>
+              )
+            }
             return (
               <DropdownMenuSub key={flag.id}>
                 <DropdownMenuSubTrigger>
