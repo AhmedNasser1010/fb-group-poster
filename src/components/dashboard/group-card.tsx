@@ -15,8 +15,8 @@ import {
   Check,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { Group, PostStatus } from "@/lib/types"
 
@@ -170,12 +170,13 @@ export function GroupCard({
       )}
 
       {noteOpen && (
-        <Input
-          className="mt-3 h-8 text-xs"
+        <Textarea
+          className="mt-3 min-h-16 text-xs"
           placeholder="Add note..."
           value={note}
           onChange={(e) => onNoteChange(e.target.value)}
           aria-label={`Note for ${group.name}`}
+          rows={3}
           autoFocus
         />
       )}
@@ -302,12 +303,13 @@ export function GroupListItem({
         )}
       </div>
 
-      <Input
-        className="hidden h-8 w-40 text-xs lg:block"
+      <Textarea
+        className="hidden w-40 min-h-16 text-xs lg:block"
         placeholder="Note..."
         value={note}
         onChange={(e) => onNoteChange(e.target.value)}
         aria-label={`Note for ${group.name}`}
+        rows={3}
       />
 
       <label className="flex shrink-0 cursor-pointer items-center gap-1.5">
