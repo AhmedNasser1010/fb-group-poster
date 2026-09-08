@@ -88,7 +88,11 @@ export function GroupFlagsBadges({
   className?: string
 }) {
   if (!flags) return null
-  const entries = GROUP_FLAGS.filter((f) => flags[f.id])
+  // Page Account flags first, then Personal Account flags
+  const entries = GROUP_FLAGS.filter((f) => flags[f.id]).sort(
+    (a, b) =>
+      (flags[a.id] === "page" ? 0 : 1) - (flags[b.id] === "page" ? 0 : 1)
+  )
   if (entries.length === 0) return null
   return (
     <span className={"inline-flex flex-wrap items-center gap-x-1.5 gap-y-1 " + className}>
