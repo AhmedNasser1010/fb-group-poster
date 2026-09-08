@@ -512,12 +512,17 @@ export function GroupListItem({
       </div>
 
       <Textarea
-        className="hidden w-40 min-h-16 text-xs lg:block"
+        className={
+          "hidden text-xs transition-all lg:block " +
+          (note.trim()
+            ? "w-40 min-h-16"
+            : "w-24 min-h-8 opacity-60 hover:opacity-100 focus:w-40 focus:min-h-16 focus:opacity-100")
+        }
         placeholder="Note..."
         value={note}
         onChange={(e) => onNoteChange(e.target.value)}
         aria-label={`Note for ${group.name}`}
-        rows={3}
+        rows={note.trim() ? 3 : 1}
       />
 
       <label className="flex shrink-0 cursor-pointer items-center gap-1.5">
