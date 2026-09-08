@@ -21,8 +21,8 @@ export type GroupFlagId =
 
 export type GroupFlagAccount = "page" | "personal"
 
-// Map of groupId -> active flags with the account they belong to
-export type GroupFlagsMap = Partial<Record<GroupFlagId, GroupFlagAccount>>
+// Map of groupId -> active flags, each with the list of accounts it applies to
+export type GroupFlagsMap = Partial<Record<GroupFlagId, GroupFlagAccount[]>>
 
 export type GroupDisplayStyle = "grid" | "list";
 

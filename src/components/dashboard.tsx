@@ -111,12 +111,20 @@ export function Dashboard() {
   ) {
     setGroupFlags((prev) => {
       const current = prev[groupId] || {}
-      const next: GroupFlagsMap = { ...current }
-      if (current[flagId] === account) {
-        // clicking the active account removes the flag
-        delete next[flagId]
+      const accounts = current[flagId] || []
+      let next: GroupFlagsMap
+      if (accounts.includes(account)) {
+        // clicking the active account removes it from the flag
+        const remaining = accounts.filter((a) => a !== account)
+        next = { ...current }
+        if (remaining.length > 0) {
+          next[flagId] = remaining
+        } else {
+          delete next[flagId]
+        }
       } else {
-        next[flagId] = account
+        // the same flag can be active for multiple accounts at once
+        next = { ...current, [flagId]: [...accounts, account] }
       }
       const updated = { ...prev, [groupId]: next }
       try {
@@ -258,15 +266,26 @@ export function Dashboard() {
         if (savedFlags) {
           const parsed = JSON.parse(savedFlags)
           if (parsed && typeof parsed === "object") {
-            // migrate old format (flag id arrays) to the account-aware map
+            // migrate old formats to the multi-account map
             const migrated: Record<string, GroupFlagsMap> = {}
             for (const [gid, value] of Object.entries(parsed)) {
               if (Array.isArray(value)) {
                 migrated[gid] = Object.fromEntries(
-                  (value as string[]).map((id) => [id, "personal"])
+                  (value as string[]).map((id) => [id, ["personal"]])
                 )
               } else if (value && typeof value === "object") {
-                migrated[gid] = value as GroupFlagsMap
+                const flags: GroupFlagsMap = {}
+                for (const [fid, acc] of Object.entries(
+                  value as Record<string, unknown>
+                )) {
+                  if (Array.isArray(acc)) {
+                    flags[fid as GroupFlagId] = acc as GroupFlagAccount[]
+                  } else if (acc === "page" || acc === "personal") {
+                    // old single-account format
+                    flags[fid as GroupFlagId] = [acc]
+                  }
+                }
+                migrated[gid] = flags
               }
             }
             setGroupFlags(migrated)

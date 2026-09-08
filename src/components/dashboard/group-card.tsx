@@ -91,14 +91,18 @@ export function GroupFlagsBadges({
   // Page Account flags first, then Personal Account flags
   const entries = GROUP_FLAGS.filter((f) => flags[f.id]).sort(
     (a, b) =>
-      (flags[a.id] === "page" ? 0 : 1) - (flags[b.id] === "page" ? 0 : 1)
+      (flags[a.id]?.includes("page") ? 0 : 1) -
+      (flags[b.id]?.includes("page") ? 0 : 1)
   )
   if (entries.length === 0) return null
   return (
     <span className={"inline-flex flex-wrap items-center gap-x-1.5 gap-y-1 " + className}>
       {entries.map((flag) => {
         const Icon = flag.icon
-        const account = flags[flag.id]
+        const accounts = flags[flag.id] || []
+        const accountLabel = accounts
+          .map((a) => (a === "page" ? "Page Account" : "Personal Account"))
+          .join(" + ")
         return (
           <Badge
             key={flag.id}
@@ -106,7 +110,7 @@ export function GroupFlagsBadges({
             render={
               <button
                 type="button"
-                title={`${flag.label} · ${account === "page" ? "Page Account" : "Personal Account"} — click to remove`}
+                title={`${flag.label} · ${accountLabel} — click to remove all`}
                 aria-label={`Remove flag ${flag.label}`}
                 onClick={() => onRemove(flag.id)}
                 className="cursor-pointer hover:bg-muted/80"
@@ -114,12 +118,13 @@ export function GroupFlagsBadges({
             }
             className={"gap-1 " + flag.badgeClass}
           >
-            {flag.label}
-            {account === "page" ? (
+            {accounts.includes("page") && (
               <Monitor className="size-3 opacity-70" aria-label="Page Account" />
-            ) : (
+            )}
+            {accounts.includes("personal") && (
               <Smartphone className="size-3 opacity-70" aria-label="Personal Account" />
             )}
+            {flag.label}
             <X className="hidden size-3 group-hover/badge:block" aria-hidden />
             <Icon className="size-3 group-hover/badge:hidden" />
           </Badge>
@@ -217,36 +222,26 @@ export function GroupFlagMenuButton({
           <DropdownMenuSeparator />
           {GROUP_FLAGS.map((flag) => {
             const Icon = flag.icon
-            const active = flags?.[flag.id]
+            const active = flags?.[flag.id] || []
             return (
               <DropdownMenuSub key={flag.id}>
                 <DropdownMenuSubTrigger>
                   <Icon className="size-4" />
                   {flag.label}
-                  {active && " ✓"}
+                  {active.length > 0 && " ✓"}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem
-                    onClick={() =>
-                      onSetFlag(
-                        flag.id,
-                        active === "page" ? "personal" : "page"
-                      )
-                    }
+                    onClick={() => onSetFlag(flag.id, "page")}
                   >
                     <Monitor className="size-4" />
-                    Page Account {active === "page" && "✓"}
+                    Page Account {active.includes("page") && "✓"}
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() =>
-                      onSetFlag(
-                        flag.id,
-                        active === "personal" ? "page" : "personal"
-                      )
-                    }
+                    onClick={() => onSetFlag(flag.id, "personal")}
                   >
                     <Smartphone className="size-4" />
-                    Personal Account {active === "personal" && "✓"}
+                    Personal Account {active.includes("personal") && "✓"}
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
