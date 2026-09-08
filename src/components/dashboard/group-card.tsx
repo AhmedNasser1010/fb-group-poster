@@ -314,6 +314,8 @@ export function GroupCard({
   onSetFlag,
   onRemoveFlag,
   onSelect,
+  isManual,
+  onRemove,
 }: {
   group: Group
   index: number
@@ -331,6 +333,8 @@ export function GroupCard({
   onSetFlag: (flagId: GroupFlagId, account: GroupFlagAccount) => void
   onRemoveFlag: (flagId: GroupFlagId) => void
   onSelect?: () => void
+  isManual?: boolean
+  onRemove?: () => void
 }) {
   const [noteOpen, setNoteOpen] = React.useState(false)
   const hasError = status?.status === "error"
@@ -467,6 +471,18 @@ export function GroupCard({
         >
           {hidden ? <Eye /> : <EyeOff />}
         </Button>
+        {isManual && onRemove && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="Remove manually added group"
+            aria-label={`Remove ${group.name} from manually added groups`}
+            onClick={onRemove}
+            className="text-destructive hover:text-destructive"
+          >
+            <Trash2 />
+          </Button>
+        )}
       </div>
 
       <span className="absolute right-3 top-3 text-[10px] tabular-nums text-muted-foreground/50">
@@ -493,6 +509,8 @@ export function GroupListItem({
   onSetFlag,
   onRemoveFlag,
   onSelect,
+  isManual,
+  onRemove,
 }: {
   group: Group
   index: number
@@ -510,6 +528,8 @@ export function GroupListItem({
   onSetFlag: (flagId: GroupFlagId, account: GroupFlagAccount) => void
   onRemoveFlag: (flagId: GroupFlagId) => void
   onSelect?: () => void
+  isManual?: boolean
+  onRemove?: () => void
 }) {
   function handleCardClick(e: React.MouseEvent<HTMLDivElement>) {
     if (!onSelect) return
@@ -627,6 +647,19 @@ export function GroupListItem({
       >
         {hidden ? <Eye /> : <EyeOff />}
       </Button>
+
+      {isManual && onRemove && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          title="Remove manually added group"
+          aria-label={`Remove ${group.name} from manually added groups`}
+          onClick={onRemove}
+          className="shrink-0 text-destructive hover:text-destructive"
+        >
+          <Trash2 />
+        </Button>
+      )}
     </div>
   )
 }

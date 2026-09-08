@@ -68,6 +68,13 @@ type GroupFilter = "all" | "posted" | "remaining"
 
 export function Dashboard() {
   const [groups, setGroups] = React.useState<Group[]>([])
+  const [manualGroups, setManualGroups] = React.useState<Group[]>([])
+  const [addGroupOpen, setAddGroupOpen] = React.useState(false)
+  const [addGroupUrl, setAddGroupUrl] = React.useState("")
+  const [addGroupName, setAddGroupName] = React.useState("")
+  const [addGroupMembers, setAddGroupMembers] = React.useState("")
+  const [addGroupPrivacy, setAddGroupPrivacy] = React.useState<"public" | "private" | "unknown">("unknown")
+  const [addingGroup, setAddingGroup] = React.useState(false)
   const [pages, setPages] = React.useState<FacebookPage[]>([])
   const [selectedPageId, setSelectedPageId] = React.useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = React.useState<string | null>(null)
@@ -232,6 +239,7 @@ export function Dashboard() {
       if (cancelled) return
 
       setGroups(cache.groups || [])
+      setManualGroups(cache.manualGroups || [])
       setPages(cache.pages || [])
       setSelectedPageId(cache.selectedPageId || null)
       setLastUpdated(cache.lastUpdated || null)
@@ -335,6 +343,7 @@ export function Dashboard() {
       }
 
       setGroups(data.groups)
+      setManualGroups(data.manualGroups || [])
       setPages(data.pages)
       setLastUpdated(data.lastUpdated)
       toast.success(
@@ -344,6 +353,64 @@ export function Dashboard() {
       toast.error("Failed to refresh groups")
     } finally {
       setRefreshing(false)
+    }
+  }
+
+  async function addManualGroup() {
+    const url = addGroupUrl.trim()
+    if (!url) {
+      toast.error("Please enter a group URL")
+      return
+    }
+    setAddingGroup(true)
+    try {
+      const res = await fetch("/api/groups/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url,
+          name: addGroupName.trim() || undefined,
+          memberCount: addGroupMembers.trim() || undefined,
+          privacy: addGroupPrivacy,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || "Failed to add group")
+        return
+      }
+      setGroups(data.groups || [])
+      setManualGroups(data.manualGroups || [])
+      setAddGroupOpen(false)
+      setAddGroupUrl("")
+      setAddGroupName("")
+      setAddGroupMembers("")
+      setAddGroupPrivacy("unknown")
+      toast.success("Group added manually — it will be kept across refreshes")
+    } catch {
+      toast.error("Failed to add group")
+    } finally {
+      setAddingGroup(false)
+    }
+  }
+
+  async function removeManualGroup(groupId: string) {
+    try {
+      const res = await fetch("/api/groups/manual", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || "Failed to remove group")
+        return
+      }
+      setManualGroups(data.manualGroups || [])
+      if (selectedGroupId === groupId) setSelectedGroupId(null)
+      toast.success("Manually added group removed")
+    } catch {
+      toast.error("Failed to remove group")
     }
   }
 
@@ -521,8 +588,18 @@ export function Dashboard() {
     }
   }
 
-  const visibleGroups = groups.filter((g) => !hiddenIds[g.id])
-  const hiddenGroups = groups.filter((g) => hiddenIds[g.id])
+  // Scraped groups + manually added groups (scraped wins on id collision)
+  const allGroups = React.useMemo(() => {
+    const ids = new Set(groups.map((g) => g.id))
+    return [...groups, ...manualGroups.filter((g) => !ids.has(g.id))]
+  }, [groups, manualGroups])
+
+  const visibleGroups = allGroups.filter((g) => !hiddenIds[g.id])
+  const hiddenGroups = allGroups.filter((g) => hiddenIds[g.id])
+  const manualIds = React.useMemo(
+    () => new Set(manualGroups.map((g) => g.id)),
+    [manualGroups]
+  )
 
   const filteredGroups = sortGroups(
     visibleGroups.filter((g) => {
@@ -544,7 +621,7 @@ export function Dashboard() {
     sortOrder
   )
 
-  const selectedGroup = groups.find((g) => g.id === selectedGroupId) || null
+  const selectedGroup = allGroups.find((g) => g.id === selectedGroupId) || null
   const posting =
     !!selectedGroup && postStatuses[selectedGroup.id]?.status === "loading"
   const postedCount = Object.values(postedIds).filter(Boolean).length
@@ -581,6 +658,7 @@ export function Dashboard() {
         onDetectPages={detectPages}
         pageDetecting={pageDetecting}
         onRefresh={() => setConfirmRefreshOpen(true)}
+        onAddGroup={() => setAddGroupOpen(true)}
         searchQuery={searchQuery}
         onSearch={setSearchQuery}
       />
@@ -770,6 +848,8 @@ export function Dashboard() {
                     onSetFlag={(f, a) => setGroupFlag(group.id, f, a)}
                     onRemoveFlag={(f) => removeGroupFlag(group.id, f)}
                               onSelect={() => setSelectedGroupId(group.id)}
+                              isManual={manualIds.has(group.id)}
+                              onRemove={() => removeManualGroup(group.id)}
                   />
                 ))}
               </div>
@@ -794,12 +874,14 @@ export function Dashboard() {
                     onSetFlag={(f, a) => setGroupFlag(group.id, f, a)}
                     onRemoveFlag={(f) => removeGroupFlag(group.id, f)}
                               onSelect={() => setSelectedGroupId(group.id)}
+                              isManual={manualIds.has(group.id)}
+                              onRemove={() => removeManualGroup(group.id)}
                   />
                 ))}
               </div>
             )}
 
-            {filteredGroups.length === 0 && groups.length > 0 && (
+            {filteredGroups.length === 0 && allGroups.length > 0 && (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 No groups match your search or filter.
               </p>
@@ -856,6 +938,8 @@ export function Dashboard() {
                               onSetFlag={(f, a) => setGroupFlag(group.id, f, a)}
                               onRemoveFlag={(f) => removeGroupFlag(group.id, f)}
                               onSelect={() => setSelectedGroupId(group.id)}
+                              isManual={manualIds.has(group.id)}
+                              onRemove={() => removeManualGroup(group.id)}
                             />
                           ))}
                         </div>
@@ -880,6 +964,8 @@ export function Dashboard() {
                               onSetFlag={(f, a) => setGroupFlag(group.id, f, a)}
                               onRemoveFlag={(f) => removeGroupFlag(group.id, f)}
                               onSelect={() => setSelectedGroupId(group.id)}
+                              isManual={manualIds.has(group.id)}
+                              onRemove={() => removeManualGroup(group.id)}
                             />
                           ))}
                         </div>
@@ -892,6 +978,69 @@ export function Dashboard() {
           </>
         )}
       </main>
+
+      {/* add group manually dialog */}
+      <Dialog open={addGroupOpen} onOpenChange={setAddGroupOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add a group manually</DialogTitle>
+            <DialogDescription>
+              Paste a Facebook group URL (and optionally a name). Manually
+              added groups are kept even when you refresh the scraped group
+              cache.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="https://www.facebook.com/groups/your-group"
+              value={addGroupUrl}
+              onChange={(e) => setAddGroupUrl(e.target.value)}
+              aria-label="Group URL"
+            />
+            <Input
+              placeholder="Group name (optional)"
+              value={addGroupName}
+              onChange={(e) => setAddGroupName(e.target.value)}
+              aria-label="Group name"
+            />
+            <div className="flex gap-3">
+              <Input
+                placeholder="Members (e.g. 12.5K)"
+                value={addGroupMembers}
+                onChange={(e) => setAddGroupMembers(e.target.value)}
+                aria-label="Member count"
+                className="flex-1"
+              />
+              <select
+                value={addGroupPrivacy}
+                onChange={(e) =>
+                  setAddGroupPrivacy(
+                    e.target.value as "public" | "private" | "unknown"
+                  )
+                }
+                aria-label="Privacy"
+                className="h-9 flex-1 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <option value="unknown">Privacy: unknown</option>
+                <option value="public">Privacy: public</option>
+                <option value="private">Privacy: private</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAddGroupOpen(false)}
+              disabled={addingGroup}
+            >
+              Cancel
+            </Button>
+            <Button onClick={addManualGroup} disabled={addingGroup}>
+              {addingGroup ? "Adding..." : "Add group"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* confirm refresh dialog */}
       <Dialog open={confirmRefreshOpen} onOpenChange={setConfirmRefreshOpen}>

@@ -10,6 +10,7 @@ import {
   Users,
   ChevronDown,
   Search,
+  Plus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,6 +42,7 @@ export function Header({
   onDetectPages,
   pageDetecting,
   onRefresh,
+  onAddGroup,
   searchQuery,
   onSearch,
 }: {
@@ -57,6 +59,7 @@ export function Header({
   onDetectPages: () => void
   pageDetecting: boolean
   onRefresh: () => void
+  onAddGroup: () => void
   searchQuery: string
   onSearch: (value: string) => void
 }) {
@@ -125,6 +128,15 @@ export function Header({
               <LogOut />
             </Button>
           )}
+          <Button
+            size="icon"
+            variant="outline"
+            title="Add a group manually"
+            aria-label="Add a group manually"
+            onClick={onAddGroup}
+          >
+            <Plus />
+          </Button>
           <Button
             size="icon"
             variant="outline"

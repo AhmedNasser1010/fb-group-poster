@@ -18,7 +18,17 @@ export async function readCache(): Promise<CacheData> {
   try {
     await ensureDataDir();
     const raw = await fs.readFile(CACHE_FILE, "utf-8");
-    return JSON.parse(raw) as CacheData;
+    const parsed = JSON.parse(raw) as Partial<CacheData>;
+    // Normalize so callers can rely on arrays always being present
+    return {
+      groups: Array.isArray(parsed.groups) ? parsed.groups : [],
+      manualGroups: Array.isArray(parsed.manualGroups)
+        ? parsed.manualGroups
+        : [],
+      pages: Array.isArray(parsed.pages) ? parsed.pages : [],
+      lastUpdated: parsed.lastUpdated ?? null,
+      selectedPageId: parsed.selectedPageId ?? null,
+    };
   } catch {
     return { ...EMPTY_CACHE };
   }

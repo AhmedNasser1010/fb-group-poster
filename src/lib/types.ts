@@ -39,6 +39,12 @@ export type GroupSortOrder =
 
 export interface CacheData {
   groups: Group[];
+  /**
+   * Groups added manually by the user (not discovered by scraping).
+   * These are preserved across cache refreshes/backups and are never
+   * overwritten by the scraper.
+   */
+  manualGroups: Group[];
   pages: FacebookPage[];
   lastUpdated: string | null;
   selectedPageId: string | null;
@@ -52,6 +58,7 @@ export interface PostStatus {
 
 export const EMPTY_CACHE: CacheData = {
   groups: [],
+  manualGroups: [],
   pages: [],
   lastUpdated: null,
   selectedPageId: null,

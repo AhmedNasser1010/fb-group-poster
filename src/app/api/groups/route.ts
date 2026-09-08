@@ -25,6 +25,11 @@ export async function POST(request: Request) {
       // No or invalid JSON body — treat as no backup
     }
 
+    // Manually added groups live in the cache file, so they must be captured
+    // BEFORE a backup renames it — otherwise they would be lost on refresh.
+    const existingCache = await readCache();
+    const manualGroups = existingCache.manualGroups;
+
     if (backup) {
       await backupCache();
     }
@@ -32,8 +37,16 @@ export async function POST(request: Request) {
     const context = await getBrowserContext();
     const groups = await scrapeGroups(context);
 
+    // Keep manual groups that the scraper did not also discover (scraped
+    // groups win on id collision), so they survive every cache refresh.
+    const scrapedIds = new Set(groups.map((g) => g.id));
+    const preservedManualGroups = manualGroups.filter(
+      (g) => !scrapedIds.has(g.id)
+    );
+
     const updated = await updateCache({
       groups,
+      manualGroups: preservedManualGroups,
       lastUpdated: new Date().toISOString(),
     });
 
