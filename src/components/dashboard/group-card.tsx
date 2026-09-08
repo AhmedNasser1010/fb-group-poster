@@ -274,6 +274,7 @@ export function GroupCard({
   flags,
   onSetFlag,
   onRemoveFlag,
+  onSelect,
 }: {
   group: Group
   index: number
@@ -290,12 +291,22 @@ export function GroupCard({
   flags: GroupFlagsMap
   onSetFlag: (flagId: GroupFlagId, account: GroupFlagAccount) => void
   onRemoveFlag: (flagId: GroupFlagId) => void
+  onSelect?: () => void
 }) {
   const [noteOpen, setNoteOpen] = React.useState(false)
   const hasError = status?.status === "error"
 
+  function handleCardClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (!onSelect) return
+    // Don't steal focus/selection from interactive controls inside the card
+    const target = e.target as HTMLElement
+    if (target.closest("button, textarea, input, label, a, [role='menu'], [role='menuitem'], [role='menuitemradio'], [data-radix-popper-content-wrapper]")) return
+    onSelect()
+  }
+
   return (
     <div
+      onClick={handleCardClick}
       className={
         "group relative flex flex-col overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md " +
         (isSelected ? "border-primary/60 ring-1 ring-primary/30 " : "") +
@@ -442,6 +453,7 @@ export function GroupListItem({
   flags,
   onSetFlag,
   onRemoveFlag,
+  onSelect,
 }: {
   group: Group
   index: number
@@ -458,9 +470,17 @@ export function GroupListItem({
   flags: GroupFlagsMap
   onSetFlag: (flagId: GroupFlagId, account: GroupFlagAccount) => void
   onRemoveFlag: (flagId: GroupFlagId) => void
+  onSelect?: () => void
 }) {
+  function handleCardClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (!onSelect) return
+    const target = e.target as HTMLElement
+    if (target.closest("button, textarea, input, label, a, [role='menu'], [role='menuitem'], [role='menuitemradio'], [data-radix-popper-content-wrapper]")) return
+    onSelect()
+  }
   return (
     <div
+      onClick={handleCardClick}
       className={
         "flex items-center gap-3 rounded-xl border bg-card p-3 shadow-sm transition-all hover:shadow-md " +
         (isSelected ? "border-primary/60 ring-1 ring-primary/30 " : "") +

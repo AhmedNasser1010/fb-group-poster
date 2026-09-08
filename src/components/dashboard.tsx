@@ -735,6 +735,7 @@ export function Dashboard() {
                     flags={groupFlags[group.id] || {}}
                     onSetFlag={(f, a) => setGroupFlag(group.id, f, a)}
                     onRemoveFlag={(f) => removeGroupFlag(group.id, f)}
+                              onSelect={() => setSelectedGroupId(group.id)}
                   />
                 ))}
               </div>
@@ -758,6 +759,7 @@ export function Dashboard() {
                     flags={groupFlags[group.id] || {}}
                     onSetFlag={(f, a) => setGroupFlag(group.id, f, a)}
                     onRemoveFlag={(f) => removeGroupFlag(group.id, f)}
+                              onSelect={() => setSelectedGroupId(group.id)}
                   />
                 ))}
               </div>
@@ -819,6 +821,7 @@ export function Dashboard() {
                               flags={groupFlags[group.id] || {}}
                               onSetFlag={(f, a) => setGroupFlag(group.id, f, a)}
                               onRemoveFlag={(f) => removeGroupFlag(group.id, f)}
+                              onSelect={() => setSelectedGroupId(group.id)}
                             />
                           ))}
                         </div>
@@ -842,6 +845,7 @@ export function Dashboard() {
                               flags={groupFlags[group.id] || {}}
                               onSetFlag={(f, a) => setGroupFlag(group.id, f, a)}
                               onRemoveFlag={(f) => removeGroupFlag(group.id, f)}
+                              onSelect={() => setSelectedGroupId(group.id)}
                             />
                           ))}
                         </div>
