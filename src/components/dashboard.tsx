@@ -58,6 +58,9 @@ import type {
   PostStatus,
   GroupDisplayStyle,
   GroupSortOrder,
+  GroupFlagId,
+  GroupFlagAccount,
+  GroupFlagsMap,
 } from "@/lib/types"
 
 type GroupFilter = "all" | "posted" | "remaining"
@@ -87,6 +90,7 @@ export function Dashboard() {
   const [postedIds, setPostedIds] = React.useState<Record<string, boolean>>({})
   const [groupNotes, setGroupNotes] = React.useState<Record<string, string>>({})
   const [hiddenIds, setHiddenIds] = React.useState<Record<string, boolean>>({})
+  const [groupFlags, setGroupFlags] = React.useState<Record<string, GroupFlagsMap>>({})
 
   function setNote(groupId: string, note: string) {
     setGroupNotes((prev) => {
@@ -97,6 +101,46 @@ export function Dashboard() {
         // localStorage unavailable — note just won't persist
       }
       return next
+    })
+  }
+
+  function setGroupFlag(
+    groupId: string,
+    flagId: GroupFlagId,
+    account: GroupFlagAccount
+  ) {
+    setGroupFlags((prev) => {
+      const current = prev[groupId] || {}
+      const next: GroupFlagsMap = { ...current }
+      if (current[flagId] === account) {
+        // clicking the active account removes the flag
+        delete next[flagId]
+      } else {
+        next[flagId] = account
+      }
+      const updated = { ...prev, [groupId]: next }
+      try {
+        window.localStorage.setItem("groupFlags", JSON.stringify(updated))
+      } catch {
+        // localStorage unavailable — flags just won't persist
+      }
+      return updated
+    })
+  }
+
+  function removeGroupFlag(groupId: string, flagId: GroupFlagId) {
+    setGroupFlags((prev) => {
+      const current = prev[groupId]
+      if (!current || !(flagId in current)) return prev
+      const next: GroupFlagsMap = { ...current }
+      delete next[flagId]
+      const updated = { ...prev, [groupId]: next }
+      try {
+        window.localStorage.setItem("groupFlags", JSON.stringify(updated))
+      } catch {
+        // localStorage unavailable — flags just won't persist
+      }
+      return updated
     })
   }
 
@@ -208,6 +252,24 @@ export function Dashboard() {
           const parsed = JSON.parse(savedHidden)
           if (parsed && typeof parsed === "object") {
             setHiddenIds(parsed as Record<string, boolean>)
+          }
+        }
+        const savedFlags = window.localStorage.getItem("groupFlags")
+        if (savedFlags) {
+          const parsed = JSON.parse(savedFlags)
+          if (parsed && typeof parsed === "object") {
+            // migrate old format (flag id arrays) to the account-aware map
+            const migrated: Record<string, GroupFlagsMap> = {}
+            for (const [gid, value] of Object.entries(parsed)) {
+              if (Array.isArray(value)) {
+                migrated[gid] = Object.fromEntries(
+                  (value as string[]).map((id) => [id, "personal"])
+                )
+              } else if (value && typeof value === "object") {
+                migrated[gid] = value as GroupFlagsMap
+              }
+            }
+            setGroupFlags(migrated)
           }
         }
       } catch {
@@ -670,6 +732,9 @@ export function Dashboard() {
                     onNoteChange={(v) => setNote(group.id, v)}
                     hidden={false}
                     onToggleHidden={() => hideGroup(group.id)}
+                    flags={groupFlags[group.id] || {}}
+                    onSetFlag={(f, a) => setGroupFlag(group.id, f, a)}
+                    onRemoveFlag={(f) => removeGroupFlag(group.id, f)}
                   />
                 ))}
               </div>
@@ -690,6 +755,9 @@ export function Dashboard() {
                     onNoteChange={(v) => setNote(group.id, v)}
                     hidden={false}
                     onToggleHidden={() => hideGroup(group.id)}
+                    flags={groupFlags[group.id] || {}}
+                    onSetFlag={(f, a) => setGroupFlag(group.id, f, a)}
+                    onRemoveFlag={(f) => removeGroupFlag(group.id, f)}
                   />
                 ))}
               </div>
@@ -748,6 +816,9 @@ export function Dashboard() {
                               onNoteChange={(v) => setNote(group.id, v)}
                               hidden={true}
                               onToggleHidden={() => unhideGroup(group.id)}
+                              flags={groupFlags[group.id] || {}}
+                              onSetFlag={(f, a) => setGroupFlag(group.id, f, a)}
+                              onRemoveFlag={(f) => removeGroupFlag(group.id, f)}
                             />
                           ))}
                         </div>
@@ -768,6 +839,9 @@ export function Dashboard() {
                               onNoteChange={(v) => setNote(group.id, v)}
                               hidden={true}
                               onToggleHidden={() => unhideGroup(group.id)}
+                              flags={groupFlags[group.id] || {}}
+                              onSetFlag={(f, a) => setGroupFlag(group.id, f, a)}
+                              onRemoveFlag={(f) => removeGroupFlag(group.id, f)}
                             />
                           ))}
                         </div>

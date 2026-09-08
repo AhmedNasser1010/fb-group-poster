@@ -13,6 +13,17 @@ export interface Group {
   url: string;
 }
 
+export type GroupFlagId =
+  | "no-reshare"
+  | "accept-posts"
+  | "long-pending"
+  | "auto-reject"
+
+export type GroupFlagAccount = "page" | "personal"
+
+// Map of groupId -> active flags with the account they belong to
+export type GroupFlagsMap = Partial<Record<GroupFlagId, GroupFlagAccount>>
+
 export type GroupDisplayStyle = "grid" | "list";
 
 export type GroupSortOrder =

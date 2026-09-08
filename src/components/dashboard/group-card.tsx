@@ -17,8 +17,113 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import type { Group, PostStatus } from "@/lib/types"
+import type {
+  Group,
+  GroupFlagAccount,
+  GroupFlagId,
+  GroupFlagsMap,
+  PostStatus,
+} from "@/lib/types"
+import { Ban, Clock, Flag, Inbox, ThumbsDown, Monitor, Smartphone, X } from "lucide-react"
+
+export interface GroupFlagMeta {
+  id: GroupFlagId
+  label: string
+  badgeClass: string
+  icon: React.ComponentType<{ className?: string }>
+}
+
+// Registry of group flags. Add new flags here — they will automatically
+// appear in the flag dropdown and render as badges on group cards.
+export const GROUP_FLAGS: GroupFlagMeta[] = [
+  {
+    id: "no-reshare",
+    label: "No Reshare",
+    badgeClass: "text-rose-600 border-rose-300 bg-rose-50 dark:bg-rose-950/40",
+    icon: Ban,
+  },
+  {
+    id: "accept-posts",
+    label: "Accept Posts",
+    badgeClass:
+      "text-sky-600 border-sky-300 bg-sky-50 dark:bg-sky-950/40",
+    icon: Inbox,
+  },
+  {
+    id: "long-pending",
+    label: "Long Pending",
+    badgeClass:
+      "text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/40",
+    icon: Clock,
+  },
+  {
+    id: "auto-reject",
+    label: "Auto Reject",
+    badgeClass:
+      "text-slate-600 border-slate-300 bg-slate-100 dark:bg-slate-900/60 dark:text-slate-300",
+    icon: ThumbsDown,
+  },
+]
+
+export function GroupFlagsBadges({
+  flags,
+  onRemove,
+  className = "",
+}: {
+  flags: GroupFlagsMap
+  onRemove: (flagId: GroupFlagId) => void
+  className?: string
+}) {
+  if (!flags) return null
+  const entries = GROUP_FLAGS.filter((f) => flags[f.id])
+  if (entries.length === 0) return null
+  return (
+    <span className={"inline-flex flex-wrap items-center gap-x-1.5 gap-y-1 " + className}>
+      {entries.map((flag) => {
+        const Icon = flag.icon
+        const account = flags[flag.id]
+        return (
+          <Badge
+            key={flag.id}
+            variant="outline"
+            render={
+              <button
+                type="button"
+                title={`${flag.label} · ${account === "page" ? "Page Account" : "Personal Account"} — click to remove`}
+                aria-label={`Remove flag ${flag.label}`}
+                onClick={() => onRemove(flag.id)}
+                className="cursor-pointer hover:bg-muted/80"
+              />
+            }
+            className={"gap-1 " + flag.badgeClass}
+          >
+            {flag.label}
+            {account === "page" ? (
+              <Monitor className="size-3 opacity-70" aria-label="Page Account" />
+            ) : (
+              <Smartphone className="size-3 opacity-70" aria-label="Personal Account" />
+            )}
+            <X className="hidden size-3 group-hover/badge:block" aria-hidden />
+            <Icon className="size-3 group-hover/badge:hidden" />
+          </Badge>
+        )
+      })}
+    </span>
+  )
+}
 
 export function parseMemberCount(count: string): number {
   const match = count.replace(/,/g, "").match(/([\d.]+)\s*([KkMm])?/)
@@ -80,6 +185,75 @@ async function copyUrl(group: Group) {
     toast.error("Failed to copy URL")
   }
 }
+export function GroupFlagMenuButton({
+  flags,
+  onSetFlag,
+}: {
+  flags: GroupFlagsMap
+  onSetFlag: (flagId: GroupFlagId, account: GroupFlagAccount) => void
+}) {
+  const hasFlags = flags && Object.keys(flags).length > 0
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="Manage flags"
+            aria-label="Manage flags"
+          />
+        }
+      >
+        <Flag className={hasFlags ? "fill-sky-400 text-sky-500" : ""} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Flags</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {GROUP_FLAGS.map((flag) => {
+            const Icon = flag.icon
+            const active = flags?.[flag.id]
+            return (
+              <DropdownMenuSub key={flag.id}>
+                <DropdownMenuSubTrigger>
+                  <Icon className="size-4" />
+                  {flag.label}
+                  {active && " ✓"}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      onSetFlag(
+                        flag.id,
+                        active === "page" ? "personal" : "page"
+                      )
+                    }
+                  >
+                    <Monitor className="size-4" />
+                    Page Account {active === "page" && "✓"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      onSetFlag(
+                        flag.id,
+                        active === "personal" ? "page" : "personal"
+                      )
+                    }
+                  >
+                    <Smartphone className="size-4" />
+                    Personal Account {active === "personal" && "✓"}
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )
+          })}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 export function GroupCard({
   group,
   index,
@@ -93,6 +267,9 @@ export function GroupCard({
   onNoteChange,
   hidden,
   onToggleHidden,
+  flags,
+  onSetFlag,
+  onRemoveFlag,
 }: {
   group: Group
   index: number
@@ -106,6 +283,9 @@ export function GroupCard({
   onNoteChange: (value: string) => void
   hidden: boolean
   onToggleHidden: () => void
+  flags: GroupFlagsMap
+  onSetFlag: (flagId: GroupFlagId, account: GroupFlagAccount) => void
+  onRemoveFlag: (flagId: GroupFlagId) => void
 }) {
   const [noteOpen, setNoteOpen] = React.useState(false)
   const hasError = status?.status === "error"
@@ -141,6 +321,7 @@ export function GroupCard({
             <span className="text-xs text-muted-foreground">
               {group.memberCount} members
             </span>
+            <GroupFlagsBadges flags={flags} onRemove={onRemoveFlag} />
           </div>
         </div>
 
@@ -195,6 +376,7 @@ export function GroupCard({
           )}
           Post
         </Button>
+        <GroupFlagMenuButton flags={flags} onSetFlag={onSetFlag} />
         <Button
           variant="ghost"
           size="icon-sm"
@@ -253,6 +435,9 @@ export function GroupListItem({
   onNoteChange,
   hidden,
   onToggleHidden,
+  flags,
+  onSetFlag,
+  onRemoveFlag,
 }: {
   group: Group
   index: number
@@ -266,6 +451,9 @@ export function GroupListItem({
   onNoteChange: (value: string) => void
   hidden: boolean
   onToggleHidden: () => void
+  flags: GroupFlagsMap
+  onSetFlag: (flagId: GroupFlagId, account: GroupFlagAccount) => void
+  onRemoveFlag: (flagId: GroupFlagId) => void
 }) {
   return (
     <div
@@ -294,6 +482,7 @@ export function GroupListItem({
           <span className="text-xs text-muted-foreground">
             {group.memberCount} members
           </span>
+          <GroupFlagsBadges flags={flags} onRemove={onRemoveFlag} />
           <StatusIndicator status={status} />
         </div>
         {status?.status === "error" && status.message && (
@@ -336,6 +525,8 @@ export function GroupListItem({
         )}
         Post
       </Button>
+
+      <GroupFlagMenuButton flags={flags} onSetFlag={onSetFlag} />
 
       <Button
         variant="ghost"
