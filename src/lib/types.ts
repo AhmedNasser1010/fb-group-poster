@@ -21,6 +21,7 @@ export type GroupFlagId =
   | "posts-deleted"
   | "check-again"
   | "posting-disabled"
+  | "new-group"
 
 export type GroupFlagAccount = "page" | "personal"
 

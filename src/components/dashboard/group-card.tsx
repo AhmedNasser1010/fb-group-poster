@@ -37,7 +37,7 @@ import type {
   GroupFlagsMap,
   PostStatus,
 } from "@/lib/types"
-import { Ban, Clock, Flag, Inbox, ThumbsDown, Monitor, Smartphone, X, Trash2, CircleOff } from "lucide-react"
+import { Ban, Clock, Flag, Inbox, ThumbsDown, Monitor, Smartphone, X, Trash2, CircleOff, Sparkles } from "lucide-react"
 
 export interface GroupFlagMeta {
   id: GroupFlagId
@@ -99,6 +99,14 @@ export const GROUP_FLAGS: GroupFlagMeta[] = [
     badgeClass:
       "text-orange-600 border-orange-300 bg-orange-50 dark:bg-orange-950/40",
     icon: CircleOff,
+  },
+  {
+    id: "new-group",
+    label: "New Group",
+    badgeClass:
+      "text-cyan-600 border-cyan-300 bg-cyan-50 dark:bg-cyan-950/40",
+    icon: Sparkles,
+    global: true,
   },
 ]
 
