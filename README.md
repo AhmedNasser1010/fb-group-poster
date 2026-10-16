@@ -11,6 +11,7 @@ A Next.js web app that lets you post to multiple Facebook groups as your Page, u
 - **Composer with image preview** — select a group, write your message, and attach an image with an inline preview before posting.
 - **Per-group posting status** — each group card shows posting / posted / failed states, with toast notifications and inline error messages.
 - **Group organization tools** — search, filter (all / posted / remaining), sort (name, followers), grid or list display, per-group notes, mark-as-posted checkboxes, and hide/unhide groups. Notes, posted marks, hidden groups, and view preferences are persisted in your browser's `localStorage`.
+- **Excel export** — download the currently filtered view as a styled, color-coded `.xlsx` (colored privacy/posted/hidden cells, per-flag colors, hyperlinks, frozen header) via the **Export** button in the toolbar. Use the **Columns** dropdown next to it to pick which columns to include; your selection is remembered.
 - **Dashboard stats bar** — at-a-glance cards for groups loaded, marked posted, remaining, and total member reach.
 - **Dashboard UI** — built with React 19, Tailwind CSS 4, and shadcn/ui components, including dark mode support and skeleton loading states.
 

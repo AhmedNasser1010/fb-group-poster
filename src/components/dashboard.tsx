@@ -14,6 +14,8 @@ import {
   Circle,
   LogIn,
   RefreshCw,
+  Download,
+  Columns3,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -43,6 +45,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu"
 import { Header } from "@/components/dashboard/header"
 import { StatsBar } from "@/components/dashboard/stats-bar"
@@ -63,6 +66,12 @@ import type {
   GroupFlagAccount,
   GroupFlagsMap,
 } from "@/lib/types"
+import type { ExportGroupRow } from "@/lib/excel"
+import {
+  EXPORT_COLUMNS,
+  DEFAULT_EXPORT_COLUMNS,
+  type ExportColumnKey,
+} from "@/lib/export-columns"
 
 type GroupFilter = "all" | "posted" | "remaining"
 
@@ -99,6 +108,10 @@ export function Dashboard() {
   const [groupNotes, setGroupNotes] = React.useState<Record<string, string>>({})
   const [hiddenIds, setHiddenIds] = React.useState<Record<string, boolean>>({})
   const [groupFlags, setGroupFlags] = React.useState<Record<string, GroupFlagsMap>>({})
+  const [exporting, setExporting] = React.useState(false)
+  const [exportColumns, setExportColumns] = React.useState<ExportColumnKey[]>(
+    DEFAULT_EXPORT_COLUMNS
+  )
 
   function setNote(groupId: string, note: string) {
     setGroupNotes((prev) => {
@@ -225,6 +238,31 @@ export function Dashboard() {
     }
   }
 
+  function persistExportColumns(columns: ExportColumnKey[]) {
+    try {
+      window.localStorage.setItem("exportColumns", JSON.stringify(columns))
+    } catch {
+      // localStorage unavailable — column selection just won't persist
+    }
+  }
+
+  function toggleExportColumn(key: ExportColumnKey) {
+    setExportColumns((prev) => {
+      const next = prev.includes(key)
+        ? prev.filter((k) => k !== key)
+        : EXPORT_COLUMNS.filter((c) => prev.includes(c.key) || c.key === key).map(
+            (c) => c.key
+          )
+      persistExportColumns(next)
+      return next
+    })
+  }
+
+  function resetExportColumns() {
+    setExportColumns(DEFAULT_EXPORT_COLUMNS)
+    persistExportColumns(DEFAULT_EXPORT_COLUMNS)
+  }
+
   React.useEffect(() => {
     let cancelled = false
     async function init() {
@@ -278,6 +316,16 @@ export function Dashboard() {
           const parsed = JSON.parse(savedHidden)
           if (parsed && typeof parsed === "object") {
             setHiddenIds(parsed as Record<string, boolean>)
+          }
+        }
+        const savedExportColumns = window.localStorage.getItem("exportColumns")
+        if (savedExportColumns) {
+          const parsed = JSON.parse(savedExportColumns)
+          if (Array.isArray(parsed)) {
+            const valid = parsed.filter((k): k is ExportColumnKey =>
+              EXPORT_COLUMNS.some((c) => c.key === k)
+            )
+            if (valid.length > 0) setExportColumns(valid)
           }
         }
         const savedFlags = window.localStorage.getItem("groupFlags")
@@ -630,6 +678,78 @@ export function Dashboard() {
     0
   )
 
+  function buildExportRows(): ExportGroupRow[] {
+    return filteredGroups.map((group, index) => {
+      const flags = groupFlags[group.id] || {}
+      const flagEntries = GROUP_FLAGS.filter((f) => flags[f.id]).map((f) => {
+        const value = flags[f.id]
+        let accountLabel: string
+        if (f.global || value === "global") {
+          accountLabel = "All"
+        } else {
+          const accounts = (value as GroupFlagAccount[]) || []
+          accountLabel = accounts
+            .map((a) => (a === "page" ? "Page" : "Personal"))
+            .join(" + ")
+        }
+        return { id: f.id, label: f.label, accountLabel }
+      })
+      return {
+        index: index + 1,
+        name: group.name,
+        privacy: group.privacy,
+        memberCount: group.memberCount,
+        posted: !!postedIds[group.id],
+        hidden: !!hiddenIds[group.id],
+        manual: manualIds.has(group.id),
+        flags: flagEntries,
+        note: groupNotes[group.id] || "",
+        url: group.url,
+      }
+    })
+  }
+
+  async function exportGroups() {
+    const rows = buildExportRows()
+    if (rows.length === 0) {
+      toast.error("No groups to export")
+      return
+    }
+    if (exportColumns.length === 0) {
+      toast.error("Select at least one column to export")
+      return
+    }
+    setExporting(true)
+    try {
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows, columns: exportColumns }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.error || "Failed to export groups")
+        return
+      }
+
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `fb-groups-${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      toast.success(`Exported ${rows.length} groups to Excel`)
+    } catch {
+      toast.error("Failed to export groups")
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const filterOptions: { value: GroupFilter; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { value: "all", label: "All", icon: List },
     { value: "posted", label: "Posted", icon: CheckCircle2 },
@@ -758,6 +878,53 @@ export function Dashboard() {
                         Name (A → Z) {sortOrder === "name-asc" && "✓"}
                       </DropdownMenuItem>
                     </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={exporting || filteredGroups.length === 0}
+                  onClick={exportGroups}
+                  title="Export the current groups to a styled Excel file"
+                >
+                  <Download />
+                  {exporting ? "Exporting…" : "Export"}
+                </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={<Button variant="outline" size="sm" />}
+                    title="Choose which columns to include in the export"
+                  >
+                    <Columns3 />
+                    Columns
+                    <Badge
+                      variant="secondary"
+                      className="ml-0.5 h-4 px-1 text-[10px] tabular-nums"
+                    >
+                      {exportColumns.length}/{EXPORT_COLUMNS.length}
+                    </Badge>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>Export columns</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {EXPORT_COLUMNS.map((col) => (
+                        <DropdownMenuCheckboxItem
+                          key={col.key}
+                          checked={exportColumns.includes(col.key)}
+                          closeOnClick={false}
+                          onCheckedChange={() => toggleExportColumn(col.key)}
+                        >
+                          {col.label}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={resetExportColumns}>
+                      Reset to default
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
